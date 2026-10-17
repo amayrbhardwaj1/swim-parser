@@ -32,28 +32,28 @@ def fetch_heatsheet_names():
                 link_text = link.get_text().lower()
                 href_lower = href.lower()
                 
-                # Check for direct PDF extensions or general keywords on the news rollup feed
-                is_pdf = href_lower.endswith(".pdf") or ".pdf?" in href_lower
+                # Capture any link that targets a PDF directly, or uses meet schedule naming contexts
+                is_pdf = ".pdf" in href_lower
                 has_meet_keywords = any(kw in href_lower or kw in link_text for kw in ["sheet", "meet", "invite", "splash", "heatsheet", "program"])
                 
-                if is_pdf or (has_meet_keywords and ("/f/" in href or "document" in href or "file" in href)):
+                if is_pdf or has_meet_keywords:
                     # Format absolute link URLs smoothly
                     full_url = href if href.startswith("http") else base_url + href
                     
-                    # Grab the string filename path cleanly before executing replacements
+                    # Grab the string filename path cleanly
                     url_end = href.split('/')[-1]
+                    # THE FIXED LINE: We grab [0] from the split list to keep it a clean text string!
                     clean_filename = url_end.split('?')[0]
                     file_name = clean_filename.replace('%20', ' ').replace('.pdf', '').strip()
                     
-                    # REPAIRED FALLBACK CHECK: No more numerical math comparison operators.
-                    # If the name is blank, we immediately fall back to the text of the link!
-                    if file_name == "":
+                    # If the filename string ends up empty or too short, fallback to anchor text directly
+                    if not file_name or len(file_name) < 3:
                         file_name = link.get_text().strip()
                         
                     clean_name = "🏆 " + file_name.replace('\n', ' ').strip().title()
                     
                     # Safely build out distinct options into the picker dropdown menu
-                    if clean_name not in database:
+                    if clean_name not in database and len(clean_name) > 5:
                         database[clean_name] = full_url
     except Exception:
         pass
