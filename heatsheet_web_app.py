@@ -41,12 +41,88 @@ def fetch_heatsheet_names():
                     # Format absolute URLs cleanly
                     full_url = href if href.startswith("http") else base_url + href
                     
-                    # Create a nice readable title from the web link or the file name
-                    # FIX: Added [0] to extract the clean path string before running string modifications
-                    file_name = href.split('/')[-1].split('?')[0].replace('%20', ' ').replace('.pdf', '')
+                    # Extract the filename string pattern
+                    raw_filename = href.split('/')[-1].split('?')[0]
+                    file_name = raw_filename.replace('%20', ' ').replace('.pdf', '').strip()
                     
-                    # Fallback to the link text if file name is blank or too short
-                    if len(file_name)  1:
+                    # REPAIRED FALLBACK CHECK: If name string is empty, pull description directly from anchor text
+                    if not file_name:
+                        file_name = link.get_text().strip()
+                        
+                    clean_name = "🏆 " + file_name.replace('\n', ' ').strip().title()
+                    
+                    # Deduplicate links seamlessly
+                    if clean_name not in database:
+                        database[clean_name] = full_url
+    except Exception:
+        pass
+    return database
+
+# --- UI WINDOW CONTENT ---
+st.title("🏊‍♂️ SwimAtlanta Automated Meet Parser")
+st.write("Select a heat sheet, type your name, and extract your schedule configuration.")
+
+# This creates a button that completely clears out old saved records to pull live sheets immediately
+if st.button("🔄 Force Check for New Meets"):
+    st.cache_data.clear()
+    st.success("Cache cleared! Fetching live updates from SwimAtlanta...")
+
+st.markdown("---")
+
+with st.spinner("🔄 Loading SwimAtlanta heat sheet names..."):
+    MEET_DATABASE = fetch_heatsheet_names()
+
+selected_sheet = st.selectbox("📅 Select the Heat Sheet you want to look at:", list(MEET_DATABASE.keys()))
+TARGET_URL = MEET_DATABASE[selected_sheet]
+
+swimmer_name = st.text_input("👤 Enter Swimmer Last Name:", placeholder="e.g., Smith")
+
+# --- PARSING ENGINE ---
+if swimmer_name:
+    try:
+        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+        response = requests.get(TARGET_URL, headers=headers, timeout=15)
+        response.raise_for_status()
+        
+        # Guard clause checking if file returned is actually an intact PDF document
+        if not response.content or b"%PDF" not in response.content[:5]:
+            st.warning(f"🔄 **Meet Sheet Notice:** SwimAtlanta is currently uploading or updating the files for **{selected_sheet}** on their server! Please try a different meet sheet or check back in a few minutes.")
+        else:
+            pdf_file = io.BytesIO(response.content)
+            reader = pypdf.PdfReader(pdf_file)
+            
+            # This dictionary groups match instances by a clean Swimmer Identity string
+            swimmer_profiles = {}
+
+            # Find all matches and group them by the swimmer's exact name identity
+            for page_num, page in enumerate(reader.pages, start=1):
+                text_content = page.extract_text()
+                if not text_content:
+                    continue
+                lines = [line.strip() for line in text_content.split('\n') if line.strip()]
+                
+                for index, current_line in enumerate(lines):
+                    if swimmer_name.upper() in current_line.upper():
+                        if any(marker in current_line for marker in ["-", "GA", "NT", ":", "."]):
+                            
+                            # Extracting ONLY the "Lastname, Firstname" part
+                            name_match = re.search(r'([A-Za-z]+,\s*[A-Za-z\s\.]+)', current_line)
+                            if name_match:
+                                identity_key = f"👤 {name_match.group(1).strip().title()}"
+                            else:
+                                identity_key = f"👤 {swimmer_name.title()}"
+                            
+                            if identity_key not in swimmer_profiles:
+                                swimmer_profiles[identity_key] = []
+                                
+                            swimmer_profiles[identity_key].append({"page": page_num, "raw_line": current_line})
+
+            # --- DEDUPLICATION SELECTION LOGIC ---
+            chosen_profile = None
+            
+            if len(swimmer_profiles) == 0:
+                st.warning(f"❌ Could not find '{swimmer_name}' inside the selected sheet.")
+            elif len(swimmer_profiles) > 1:
                 st.info("💡 Multiple different swimmers found with that last name! Please choose yours:")
                 chosen_profile = st.selectbox("🎯 Choose Your Profile Configuration:", list(swimmer_profiles.keys()))
             else:
