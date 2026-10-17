@@ -13,49 +13,52 @@ st.set_page_config(page_title="SwimAtlanta Meet Parser", page_icon="🏊‍♂�
 @st.cache_data(ttl=120)
 def fetch_heatsheet_names():
     base_url = "https://swimatlanta.com"
-    news_url = "https://swimatlanta.com"
     
-    # Hardcoded default fallback list
+    # Hardcoded default fallback list to ensure core meets always exist
     database = {
         "🏆 Splash Jam Heat Sheet": "https://swimatlanta.com",
         "🏆 AAU Lucky Splash Sunday": "https://swimatlanta.com",
         "🏆 Betsy Dunbar LC Meet": "https://swimatlanta.com"
     }
     
-    try:
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
-        response = requests.get(news_url, headers=headers, timeout=10)
-        if response.status_code == 200:
-            soup = BeautifulSoup(response.text, 'html.parser')
-            for link in soup.find_all('a', href=True):
-                href = link['href'].strip()
-                link_text = link.get_text().strip()
-                href_lower = href.lower()
-                
-                # STALWART FILTER RULE: It MUST actually contain a PDF extension link to count!
-                is_pdf_link = ".pdf" in href_lower or ".pdf?" in href_lower
-                
-                if is_pdf_link:
-                    # Format absolute link URLs smoothly
-                    full_url = href if href.startswith("http") else base_url + href
+    # SYSTEM EXTENSION: Loops through all 21 historical announcement page sections smoothly
+    for page_idx in range(1, 22):
+        news_url = f"https://swimatlanta.com/news?page={page_idx}" if page_idx > 1 else "https://swimatlanta.com/news"
+        
+        try:
+            headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+            response = requests.get(news_url, headers=headers, timeout=8)
+            if response.status_code == 200:
+                soup = BeautifulSoup(response.text, 'html.parser')
+                for link in soup.find_all('a', href=True):
+                    href = link['href'].strip()
+                    link_text = link.get_text().strip()
+                    href_lower = href.lower()
                     
-                    # Extract the filename cleanly from the trailing path segments
-                    url_end = href.split('/')[-1]
-                    clean_filename = url_end.split('?')[0]
-                    file_name = clean_filename.replace('%20', ' ').replace('.pdf', '').strip()
+                    # STALWART FILTER RULE: It MUST actually contain a PDF extension link to count!
+                    is_pdf_link = ".pdf" in href_lower or ".pdf?" in href_lower
                     
-                    # REPAIRED FALLBACK CHECK: If name string matches an empty text slot,
-                    # we immediately fall back to the text of the link descriptor instead!
-                    if file_name == "":
-                        file_name = link_text if link_text else "Unnamed Meet Sheet File"
+                    if is_pdf_link:
+                        # Format absolute link URLs smoothly
+                        full_url = href if href.startswith("http") else base_url + href
                         
-                    clean_name = "🏆 " + file_name.replace('\n', ' ').strip().title()
-                    
-                    # Safely build out distinct options into the picker dropdown menu
-                    if clean_name not in database:
-                        database[clean_name] = full_url
-    except Exception:
-        pass
+                        # Extract the filename cleanly from the trailing path segments
+                        url_end = href.split('/')[-1]
+                        clean_filename = url_end.split('?')
+                        file_name = clean_filename[0].replace('%20', ' ').replace('.pdf', '').strip()
+                        
+                        # REPAIRED CHECK: Uses direct empty string matching to bypass syntax translation glitches
+                        if file_name == "":
+                            file_name = link_text if link_text else "Unnamed Meet Sheet File"
+                            
+                        clean_name = "🏆 " + file_name.replace('\n', ' ').strip().title()
+                        
+                        # Safely build out distinct options into the picker dropdown menu
+                        if clean_name not in database:
+                            database[clean_name] = full_url
+        except Exception:
+            pass
+            
     return database
 
 # --- UI WINDOW CONTENT ---
@@ -134,7 +137,7 @@ if swimmer_name:
                 event_count = 0
                 
                 # Handle cases where profile might be list or string from index extractions
-                target_key = chosen_profile if isinstance(chosen_profile, str) else chosen_profile[0]
+                target_key = chosen_profile if isinstance(chosen_profile, str) else chosen_profile
                 
                 for match_data in swimmer_profiles[target_key]:
                     event_count += 1
@@ -188,4 +191,3 @@ if swimmer_name:
                         st.caption(f"📝 Line Entry: {block['line']}")
 
     except Exception as e:
-        st.error(f"⚠️ Error accessing the file: {e}")
