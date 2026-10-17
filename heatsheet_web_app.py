@@ -13,7 +13,7 @@ st.set_page_config(page_title="SwimAtlanta Meet Parser", page_icon="🏊‍♂�
 @st.cache_data(ttl=120)
 def fetch_heatsheet_names():
     base_url = "https://swimatlanta.com"
-    news_url = "https://swimatlanta.com/news"
+    news_url = "https://swimatlanta.com"
     
     # Hardcoded default fallback list
     database = {
@@ -32,7 +32,7 @@ def fetch_heatsheet_names():
                 link_text = link.get_text().lower()
                 href_lower = href.lower()
                 
-                # REPAIRED FILTER ENGINE: Capture any link that targets a PDF directly,
+                # Capture any link that targets a PDF directly,
                 # or uses explicit heat/meet schedule naming contexts on the news roll!
                 is_pdf = href_lower.endswith(".pdf") or ".pdf?" in href_lower
                 has_meet_keywords = any(kw in href_lower or kw in link_text for kw in ["sheet", "meet", "invite", "splash", "heatsheet", "program"])
@@ -43,6 +43,8 @@ def fetch_heatsheet_names():
                     
                     # Create a nice readable title from the web link or the file name
                     file_name = href.split('/')[-1].split('?')[0].replace('%20', ' ').replace('.pdf', '')
+                    
+                    # FIXED LOGIC OPERATOR: Gracefully checks if name is blank/short, falls back to text link
                     if len(file_name)  1:
                 st.info("💡 Multiple different swimmers found with that last name! Please choose yours:")
                 chosen_profile = st.selectbox("🎯 Choose Your Profile Configuration:", list(swimmer_profiles.keys()))
