@@ -8,18 +8,16 @@ from bs4 import BeautifulSoup
 # App layout setup
 st.set_page_config(page_title="SwimAtlanta Meet Parser", page_icon="🏊‍♂️", layout="centered")
 
-# --- DATABASE DISCOVERY SCRAPER ---
-# Checked every 2 minutes (120 seconds) as configured!
-@st.cache_data(ttl=120)
+# --- DATABASE DISCOVERY SCAPER ---
+@st.cache_data(ttl=3600)
 def fetch_heatsheet_names():
     base_url = "https://swimatlanta.com"
-    news_url = "https://swimatlanta.com"
+    news_url = "https://swimatlanta.com/news"
     
-    # Hardcoded default fallback list
     database = {
-        "🏆 Splash Jam Heat Sheet": "https://swimatlanta.com",
-        "🏆 AAU Lucky Splash Sunday": "https://swimatlanta.com",
-        "🏆 Betsy Dunbar LC Meet": "https://swimatlanta.com"
+        "🏆 Splash Jam Heat Sheet": "https://swimatlanta.com/f/splashjamheatsheet.pdf",
+        "🏆 AAU Lucky Splash Sunday": "https://swimatlanta.com/f/Lucky%20Splash%20Heat%20Sheets.pdf",
+        "🏆 Betsy Dunbar LC Meet": "https://swimatlanta.com/f/rev1betsysatpm.pdf"
     }
     
     try:
@@ -28,33 +26,12 @@ def fetch_heatsheet_names():
         if response.status_code == 200:
             soup = BeautifulSoup(response.text, 'html.parser')
             for link in soup.find_all('a', href=True):
-                href = link['href'].strip()
-                link_text = link.get_text().lower()
-                href_lower = href.lower()
-                
-                # Capture any link that targets a PDF directly, or uses meet schedule naming contexts
-                is_pdf = ".pdf" in href_lower
-                has_meet_keywords = any(kw in href_lower or kw in link_text for kw in ["sheet", "meet", "invite", "splash", "heatsheet", "program"])
-                
-                if is_pdf or has_meet_keywords:
-                    # Format absolute link URLs smoothly
+                href = link['href']
+                if "/f/" in href and ("heatsheet" in href.lower() or "meet" in href.lower() or "sheet" in href.lower()):
                     full_url = href if href.startswith("http") else base_url + href
-                    
-                    # Grab the string filename path cleanly
-                    url_end = href.split('/')[-1]
-                    # THE FIXED LINE: We grab [0] from the split list to keep it a clean text string!
-                    clean_filename = url_end.split('?')[0]
-                    file_name = clean_filename.replace('%20', ' ').replace('.pdf', '').strip()
-                    
-                    # If the filename string ends up empty or too short, fallback to anchor text directly
-                    if not file_name or len(file_name) < 3:
-                        file_name = link.get_text().strip()
-                        
-                    clean_name = "🏆 " + file_name.replace('\n', ' ').strip().title()
-                    
-                    # Safely build out distinct options into the picker dropdown menu
-                    if clean_name not in database and len(clean_name) > 5:
-                        database[clean_name] = full_url
+                    clean_name = href.split('/')[-1].replace('%20', ' ').replace('.pdf', '')
+                    clean_name = "🏆 " + clean_name.title()
+                    database[clean_name] = full_url
     except Exception:
         pass
     return database
@@ -62,12 +39,6 @@ def fetch_heatsheet_names():
 # --- UI WINDOW CONTENT ---
 st.title("🏊‍♂️ SwimAtlanta Automated Meet Parser")
 st.write("Select a heat sheet, type your name, and extract your schedule configuration.")
-
-# This creates a button that completely clears out old saved records to pull live sheets immediately
-if st.button("🔄 Force Check for New Meets"):
-    st.cache_data.clear()
-    st.success("Cache cleared! Fetching live updates from SwimAtlanta...")
-
 st.markdown("---")
 
 with st.spinner("🔄 Loading SwimAtlanta heat sheet names..."):
@@ -85,7 +56,6 @@ if swimmer_name:
         response = requests.get(TARGET_URL, headers=headers, timeout=15)
         response.raise_for_status()
         
-        # Guard clause checking if file returned is actually an intact PDF document
         if not response.content or b"%PDF" not in response.content[:5]:
             st.warning(f"🔄 **Meet Sheet Notice:** SwimAtlanta is currently uploading or updating the files for **{selected_sheet}** on their server! Please try a different meet sheet or check back in a few minutes.")
         else:
@@ -95,18 +65,15 @@ if swimmer_name:
             # This dictionary groups match instances by a clean Swimmer Identity string
             swimmer_profiles = {}
 
-            # Find all matches and group them by the swimmer's exact name identity
+            # First Pass: Find all matches and group them by the swimmer's exact name identity
             for page_num, page in enumerate(reader.pages, start=1):
-                text_content = page.extract_text()
-                if not text_content:
-                    continue
-                lines = [line.strip() for line in text_content.split('\n') if line.strip()]
+                lines = [line.strip() for line in page.extract_text().split('\n') if line.strip()]
                 
                 for index, current_line in enumerate(lines):
                     if swimmer_name.upper() in current_line.upper():
                         if any(marker in current_line for marker in ["-", "GA", "NT", ":", "."]):
                             
-                            # Extracting ONLY the "Lastname, Firstname" part
+                            # Extracting ONLY the "Lastname, Firstname" part and dropping age parameters
                             name_match = re.search(r'([A-Za-z]+,\s*[A-Za-z\s\.]+)', current_line)
                             if name_match:
                                 identity_key = f"👤 {name_match.group(1).strip().title()}"
@@ -127,9 +94,11 @@ if swimmer_name:
                 st.info("💡 Multiple different swimmers found with that last name! Please choose yours:")
                 chosen_profile = st.selectbox("🎯 Choose Your Profile Configuration:", list(swimmer_profiles.keys()))
             else:
-                chosen_profile = list(swimmer_profiles.keys())
+                # --- THE CRITICAL FIX ---
+                # Grab the actual string name at index 0 out of the keys list so it isn't an unhashable list format!
+                chosen_profile = list(swimmer_profiles.keys())[0]
 
-            # Second Pass: Extract Event, Heat, and Lane values
+            # Second Pass: Extract Event, Heat, and Lane values locally on target pages
             if chosen_profile:
                 schedule_blocks = []
                 event_count = 0
@@ -186,4 +155,4 @@ if swimmer_name:
                         st.caption(f"📝 Line Entry: {block['line']}")
 
     except Exception as e:
-        st.error(f"⚠️ Error accessing the file: {e}")
+        st.error(f"⚠️ Error accessing the file stream: {e}")
