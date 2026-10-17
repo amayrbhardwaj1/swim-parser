@@ -23,7 +23,7 @@ def fetch_heatsheet_names():
     
     # SYSTEM EXTENSION: Loops through all 21 historical announcement page sections smoothly
     for page_idx in range(1, 22):
-        news_url = f"https://swimatlanta.com/news?page={page_idx}" if page_idx > 1 else "https://swimatlanta.com/news"
+        news_url = f"https://swimatlanta.com{page_idx}" if page_idx > 1 else "https://swimatlanta.com"
         
         try:
             headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
@@ -137,7 +137,7 @@ if swimmer_name:
                 event_count = 0
                 
                 # Handle cases where profile might be list or string from index extractions
-                target_key = chosen_profile if isinstance(chosen_profile, str) else chosen_profile
+                target_key = chosen_profile if isinstance(chosen_profile, str) else chosen_profile[0]
                 
                 for match_data in swimmer_profiles[target_key]:
                     event_count += 1
