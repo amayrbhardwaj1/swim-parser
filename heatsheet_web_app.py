@@ -16,14 +16,14 @@ def fetch_heatsheet_names():
     
     # Hardcoded default fallback list to ensure core meets always exist
     database = {
-        "🏆 Splash Jam Heat Sheet": "https://swimatlanta.com",
-        "🏆 AAU Lucky Splash Sunday": "https://swimatlanta.com",
-        "🏆 Betsy Dunbar LC Meet": "https://swimatlanta.com"
+        "🏆 Splash Jam Heat Sheet": "https://swimatlanta.com/f/splashjamheatsheet.pdf",
+        "🏆 AAU Lucky Splash Sunday": "https://swimatlanta.com/f/Lucky%20Splash%20Heat%20Sheets.pdf",
+        "🏆 Betsy Dunbar LC Meet": "https://swimatlanta.com/f/rev1betsysatpm.pdf"
     }
     
     # SYSTEM EXTENSION: Loops through all 21 historical announcement page sections smoothly
     for page_idx in range(1, 22):
-        news_url = f"https://swimatlanta.com{page_idx}" if page_idx > 1 else "https://swimatlanta.com"
+        news_url = f"https://swimatlanta.com{page_idx}" if page_idx > 1 else "https://swimatlanta.com/news"
         
         try:
             headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
@@ -45,6 +45,7 @@ def fetch_heatsheet_names():
                         # Extract the filename cleanly from the trailing path segments
                         url_end = href.split('/')[-1]
                         clean_filename = url_end.split('?')
+                        # FIXED COMPONENT: [0] safely keeps this a clean string text object!
                         file_name = clean_filename[0].replace('%20', ' ').replace('.pdf', '').strip()
                         
                         # REPAIRED CHECK: Uses direct empty string matching to bypass syntax translation glitches
@@ -129,18 +130,15 @@ if swimmer_name:
                 st.info("💡 Multiple different swimmers found with that last name! Please choose yours:")
                 chosen_profile = st.selectbox("🎯 Choose Your Profile Configuration:", list(swimmer_profiles.keys()))
             else:
-                chosen_profile = list(swimmer_profiles.keys())
+                chosen_profile = list(swimmer_profiles.keys())[0]
 
             # Second Pass: Extract Event, Heat, and Lane values
             if chosen_profile:
                 schedule_blocks = []
-                event_count = 0
+                count = 0
                 
-                # Handle cases where profile might be list or string from index extractions
-                target_key = chosen_profile if isinstance(chosen_profile, str) else chosen_profile[0]
-                
-                for match_data in swimmer_profiles[target_key]:
-                    event_count += 1
+                for match_data in swimmer_profiles[chosen_profile]:
+                    count += 1
                     target_page_num = match_data["page"]
                     target_line_text = match_data["raw_line"]
                     
@@ -181,8 +179,8 @@ if swimmer_name:
                             break 
 
                 # --- RENDER CLEAN INTEGRATED SCHEDULE ---
-                st.metric(label="Total Races Found", value=event_count)
-                st.subheader(f"📋 Verified Schedule for {target_key}:")
+                st.metric(label="Total Races Found", value=count)
+                st.subheader(f"📋 Verified Schedule for {chosen_profile}:")
                 
                 for i, block in enumerate(schedule_blocks, start=1):
                     with st.expander(f"🏅 Race {i}: {block['event']}", expanded=True):
@@ -191,3 +189,4 @@ if swimmer_name:
                         st.caption(f"📝 Line Entry: {block['line']}")
 
     except Exception as e:
+        st.error(f"⚠️ Error accessing the file: {e}")
