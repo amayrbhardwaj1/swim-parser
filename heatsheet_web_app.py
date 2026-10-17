@@ -42,14 +42,15 @@ def fetch_heatsheet_names():
                     full_url = href if href.startswith("http") else base_url + href
                     
                     # Create a nice readable title from the web link or the file name
+                    # FIX: Added [0] to extract the clean path string before running string modifications
                     file_name = href.split('/')[-1].split('?')[0].replace('%20', ' ').replace('.pdf', '')
                     
-                    # FIXED LOGIC OPERATOR: Gracefully checks if name is blank/short, falls back to text link
+                    # Fallback to the link text if file name is blank or too short
                     if len(file_name)  1:
                 st.info("💡 Multiple different swimmers found with that last name! Please choose yours:")
                 chosen_profile = st.selectbox("🎯 Choose Your Profile Configuration:", list(swimmer_profiles.keys()))
             else:
-                chosen_profile = list(swimmer_profiles.keys())[0]
+                chosen_profile = list(swimmer_profiles.keys())
 
             # Second Pass: Extract Event, Heat, and Lane values
             if chosen_profile:
